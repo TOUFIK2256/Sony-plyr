@@ -3,49 +3,358 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>M3U8 Player</title>
-    <!-- Hls.js Library -->
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <title>Clean Player Direct</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js/dist/hls.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dashjs/dist/dash.all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flv.js/dist/flv.min.js"></script>
+
     <style>
-        body { margin: 0; background: #000; height: 100vh; display: flex; align-items: center; justify-content: center; }
-        video { width: 100%; height: 100%; max-height: 100vh; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: #000; font-family: 'Segoe UI', sans-serif; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh; overflow: hidden;
+        }
+
+        .player-wrapper {
+            width: 100%; max-width: 900px; aspect-ratio: 16 / 9; position: relative;
+            background: #000; box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+        }
+        .artplayer-app { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+        
+        @media (max-width: 500px) { .art-control-volume { display: none !important; } }
+
+        /* === INTERNAL LAYER STYLES === */
+        .art-layer-quality {
+            display: none; 
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 100 !important;
+        }
+
+        .modal-box {
+            background: #1a1a1a;
+            width: 280px;
+            max-height: 80%;
+            border-radius: 8px;
+            border: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 5px 20px #000;
+        }
+
+        .modal-header {
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+            color: #fff;
+            border-bottom: 1px solid #333;
+            background: #222;
+        }
+
+        .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 5px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .q-option {
+            padding: 10px;
+            background: #2b2b2b;
+            color: #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            cursor: pointer;
+        }
+        .q-option:hover { background: #383838; }
+        .q-option.active { background: #0984e3; color: white; font-weight: bold; }
+        .q-bitrate { font-size: 11px; opacity: 0.6; }
+
+        .modal-close {
+            padding: 10px;
+            text-align: center;
+            color: #ff4757;
+            font-weight: bold;
+            cursor: pointer;
+            border-top: 1px solid #333;
+            background: #222;
+        }
+        .modal-close:active { background: #333; }
+        
+        #error-msg {
+            color: #ff4757; font-size: 18px; display: none;
+        }
     </style>
 </head>
 <body>
 
-<video id="video" controls autoplay></video>
+    <div id="error-msg">Please add ?play=YOUR_LINK to the URL</div>
 
-<script>
-    const urlParams = new URLSearchParams(window.location.search);
-    const videoUrl = urlParams.get('play');
-    const video = document.getElementById('video');
+    <div class="player-wrapper">
+        <div class="artplayer-app"></div>
+    </div>
 
-    if (videoUrl) {
-        if (Hls.isSupported()) {
-            const hls = new Hls();
-            hls.loadSource(videoUrl);
-            hls.attachMedia(video);
-            hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                video.play();
+    <script>
+        let art;
+        let qualityLevelsData = [];
+        let currentQualityIndex = -1;
+        let setQualityFunction = null;
+
+        const icons = {
+            globe: '<svg width="24" height="24" viewBox="0 0 24 24" fill="#ffffff"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm6.93 6h-2.95c-.32-1.25-.78-2.45-1.38-3.56 1.84.63 3.37 1.91 4.33 3.56zM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM4.26 14C4.1 13.36 4 12.69 4 12s.1-1.36.26-2h3.38c-.08.66-.14 1.32-.14 2 0 .68.06 1.34.14 2H4.26zm.82 2h2.95c.32 1.25.78 2.45 1.38 3.56-1.84-.63-3.37-1.9-4.33-3.56zm2.95-8H5.08c.96-1.66 2.49-2.93 4.33-3.56C8.81 5.55 8.35 6.75 8.03 8zM12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82c-.43 1.43-1.08 2.76-1.91 3.96zM14.34 14H9.66c-.09-.66-.16-1.32-.16-2 0-.68.07-1.35.16-2h4.68c.09.65.16 1.32.16 2 0 .68-.07 1.34-.16 2zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95c-.96 1.65-2.49 2.93-4.33 3.56zM16.36 14c.08-.66.14-1.32.14-2 0-.68-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2h-3.38z"/></svg>',
+            gear: '<svg width="24" height="24" viewBox="0 0 24 24" fill="#ffffff"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>',
+            aspect: '<svg width="24" height="24" viewBox="0 0 24 24" fill="#ffffff"><path d="M5 5h2v2H5V5zm4 0h2v2H9V5zm4 0h2v2h-2V5zm4 0h2v2h-2V5zm0 4h2v2h-2V9zm0 4h2v2h-2v-2zm0 4h2v2h-2v-2zM5 9h2v2H5V9zm0 4h2v2H5v-2zm0 4h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2z"/></svg>',
+            fullscreen: '<svg width="24" height="24" viewBox="0 0 24 24" fill="#ffffff"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>',
+            pip: '<svg width="24" height="24" viewBox="0 0 24 24" fill="#ffffff"><path d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>'
+        };
+
+        // অটোমেটিক রান হবে পেজ লোড হলে
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const url = urlParams.get('play');
+
+            if (!url) {
+                document.getElementById('error-msg').style.display = 'block';
+                return;
+            }
+
+            initPlayer(url);
+        });
+
+        function initPlayer(url) {
+            let type = 'customHls';
+            if(url.includes('.mpd')) type = 'customDash';
+            else if(url.includes('.flv')) type = 'customFlv';
+            else if(url.includes('.mp4')) type = 'mp4';
+
+            if (art) art.destroy(false);
+            qualityLevelsData = [];
+            currentQualityIndex = -1;
+
+            art = new Artplayer({
+                container: '.artplayer-app',
+                url: url,
+                type: type,
+                autoplay: true,
+                setting: false,
+                pip: false,
+                fullscreen: false,
+                fullscreenWeb: false,
+                theme: '#2196F3',
+                autoOrientation: true,
+                
+                layers: [
+                    {
+                        name: 'qualityModal',
+                        html: `
+                            <div class="modal-box">
+                                <div class="modal-header">Quality Options</div>
+                                <div class="modal-body" id="qList"></div>
+                                <div class="modal-close" id="qClose">Close</div>
+                            </div>
+                        `,
+                        style: {
+                            display: 'none',
+                            position: 'absolute',
+                            top: 0, left: 0, width: '100%', height: '100%',
+                            zIndex: 100,
+                            background: 'rgba(0,0,0,0.8)',
+                            justifyContent: 'center',
+                            alignItems: 'center'
+                        }
+                    }
+                ],
+
+                controls: [
+                    {
+                        name: 'fullscreenBtn',
+                        position: 'right',
+                        html: icons.fullscreen,
+                        tooltip: 'Fullscreen',
+                        index: 10,
+                        click: function () {
+                            art.fullscreen = !art.fullscreen;
+                        }
+                    },
+                    {
+                        name: 'audioList',
+                        position: 'right',
+                        html: icons.globe,
+                        tooltip: 'Audio',
+                        index: 11,
+                        selector: [], 
+                        onSelect: function (item) { return icons.globe; }
+                    },
+                    {
+                        name: 'qualityBtn',
+                        position: 'right',
+                        html: icons.gear,
+                        tooltip: 'Quality',
+                        index: 12,
+                        click: function () {
+                            const layer = art.layers.qualityModal;
+                            if (layer.style.display === 'flex') {
+                                layer.style.display = 'none';
+                            } else {
+                                buildAndShowQuality();
+                            }
+                        }
+                    },
+                    {
+                        name: 'pipBtn',
+                        position: 'right',
+                        html: icons.pip,
+                        tooltip: 'PIP',
+                        index: 13,
+                        click: function () {
+                            art.pip = !art.pip;
+                        }
+                    },
+                    {
+                        name: 'aspectRatio',
+                        position: 'right',
+                        html: icons.aspect,
+                        tooltip: 'Aspect',
+                        index: 14,
+                        selector: [
+                            { html: 'Default', url: 'default', default: true },
+                            { html: '16:9', url: '16:9' },
+                            { html: '4:3', url: '4:3' }
+                        ],
+                        onSelect: function (item) { art.aspectRatio = item.url; return icons.aspect; }
+                    }
+                ],
+
+                customType: {
+                    customDash: function (video, url, art) {
+                        const player = dashjs.MediaPlayer().create();
+                        player.initialize(video, url, true);
+                        player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, function () {
+                            const audioTracks = player.getTracksFor('audio');
+                            const audioList = audioTracks.map((track, i) => ({
+                                default: track === player.getCurrentTrackFor('audio'),
+                                html: track.lang || `Audio ${i+1}`,
+                                index: track 
+                            }));
+                            art.controls.update({
+                                name: 'audioList',
+                                html: icons.globe,
+                                selector: audioList,
+                                onSelect: (item) => { player.setCurrentTrack(item.index); return icons.globe; }
+                            });
+
+                            const videoQualities = player.getBitrateInfoListFor('video');
+                            qualityLevelsData = videoQualities.map((q, i) => ({
+                                height: q.height,
+                                bitrate: Math.round(q.bitrate / 1000) + ' kbps',
+                                index: i
+                            }));
+                            setQualityFunction = (index) => {
+                                if(index === -1) player.updateSettings({ 'streaming': { 'abr': { 'autoSwitchBitrate': { 'video': true } } } });
+                                else {
+                                    player.updateSettings({ 'streaming': { 'abr': { 'autoSwitchBitrate': { 'video': false } } } });
+                                    player.setQualityFor('video', index);
+                                }
+                                currentQualityIndex = index;
+                            };
+                        });
+                    },
+                    customHls: function (video, url, art) {
+                        if (Hls.isSupported()) {
+                            const hls = new Hls();
+                            hls.loadSource(url);
+                            hls.attachMedia(video);
+                            hls.on(Hls.Events.MANIFEST_PARSED, function () {
+                                let audioList = hls.audioTracks.map((t, i) => ({
+                                    html: t.name || t.lang || `Audio ${i+1}`,
+                                    index: i,
+                                    default: i === hls.audioTrack
+                                }));
+                                if(audioList.length === 0) audioList = [{html: 'Default', index: 0, default: true}];
+                                art.controls.update({
+                                    name: 'audioList',
+                                    html: icons.globe,
+                                    selector: audioList,
+                                    onSelect: (item) => { hls.audioTrack = item.index; return icons.globe; }
+                                });
+
+                                qualityLevelsData = hls.levels.map((l, i) => ({
+                                    height: l.height,
+                                    bitrate: Math.round(l.bitrate / 1000) + ' kbps',
+                                    index: i
+                                }));
+                                setQualityFunction = (index) => {
+                                    hls.currentLevel = index;
+                                    currentQualityIndex = index;
+                                };
+                            });
+                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) { video.src = url; }
+                    },
+                    customFlv: function (video, url) {
+                        if (flvjs.isSupported()) {
+                            const flv = flvjs.createPlayer({ type: 'flv', url: url });
+                            flv.attachMediaElement(video);
+                            flv.load();
+                        }
+                    }
+                },
             });
-            // এরর হ্যান্ডলিং
-            hls.on(Hls.Events.ERROR, function (event, data) {
-                if (data.fatal) {
-                    console.log("HLS Error:", data.type);
+
+            art.on('ready', () => {
+                const layer = art.layers.qualityModal;
+                const closeBtn = layer.querySelector('#qClose');
+                closeBtn.addEventListener('click', (e) => { e.stopPropagation(); layer.style.display = 'none'; });
+                layer.addEventListener('click', (e) => { if(e.target === layer) layer.style.display = 'none'; });
+            });
+
+            art.on('fullscreen', (state) => {
+                if (state && screen.orientation && screen.orientation.lock) {
+                    screen.orientation.lock('landscape').catch(()=>{});
+                } else if (!state && screen.orientation && screen.orientation.unlock) {
+                    screen.orientation.unlock();
                 }
             });
         }
-        // আইফোন/সাফারির জন্য
-        else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            video.src = videoUrl;
-            video.addEventListener('loadedmetadata', function() {
-                video.play();
-            });
-        }
-    } else {
-        alert("Please add ?play=LINK");
-    }
-</script>
 
+        function buildAndShowQuality() {
+            if(qualityLevelsData.length === 0) {
+                alert("Quality switching not available.");
+                return;
+            }
+            const layer = art.layers.qualityModal;
+            const listContainer = layer.querySelector('#qList');
+            listContainer.innerHTML = '';
+
+            const autoDiv = document.createElement('div');
+            autoDiv.className = `q-option ${currentQualityIndex === -1 ? 'active' : ''}`;
+            autoDiv.innerHTML = `<span>Auto</span> <span class="q-bitrate">Adaptive</span>`;
+            autoDiv.onclick = (e) => { e.stopPropagation(); applyQuality(-1); };
+            listContainer.appendChild(autoDiv);
+
+            [...qualityLevelsData].reverse().forEach(level => {
+                const div = document.createElement('div');
+                div.className = `q-option ${currentQualityIndex === level.index ? 'active' : ''}`;
+                div.innerHTML = `<span>${level.height}p</span> <span class="q-bitrate">(${level.bitrate})</span>`;
+                div.onclick = (e) => { e.stopPropagation(); applyQuality(level.index); };
+                listContainer.appendChild(div);
+            });
+            layer.style.display = 'flex';
+        }
+
+        function applyQuality(index) {
+            if(setQualityFunction) setQualityFunction(index);
+            art.layers.qualityModal.style.display = 'none';
+        }
+    </script>
 </body>
 </html>
