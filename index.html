@@ -3,80 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>M3U8 Tester</title>
-    <!-- Shaka Player -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.11/shaka-player.ui.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.11/controls.min.css">
-    
+    <title>M3U8 Player</title>
+    <!-- Hls.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
-        body { 
-            margin: 0; padding: 0; background: #000; 
-            width: 100vw; height: 100vh; overflow: hidden;
-            display: flex; align-items: center; justify-content: center;
-        }
-        .video-container { width: 100%; height: 100%; background: #000; }
-        video { width: 100%; height: 100%; object-fit: contain; }
-        
-        #error-log {
-            position: absolute; top: 10px; left: 10px; background: rgba(255,0,0,0.8);
-            color: white; padding: 5px 10px; font-family: monospace; display: none; z-index: 100;
-        }
+        body { margin: 0; background: #000; height: 100vh; display: flex; align-items: center; justify-content: center; }
+        video { width: 100%; height: 100%; max-height: 100vh; }
     </style>
 </head>
 <body>
 
-<div id="error-log"></div>
-
-<div class="video-container" data-shaka-player-container>
-    <video id="video" autoplay playsinline data-shaka-player></video>
-</div>
+<video id="video" controls autoplay></video>
 
 <script>
-    async function init() {
-        shaka.Polyfill.installAll();
-        if (shaka.Player.isBrowserSupported()) {
-            const video = document.getElementById('video');
-            const ui = video['ui'];
-            const controls = ui.getControls();
-            const player = controls.getPlayer();
+    const urlParams = new URLSearchParams(window.location.search);
+    const videoUrl = urlParams.get('play');
+    const video = document.getElementById('video');
 
-            // M3U8 এর জন্য বাফারিং ফিক্স
-            player.configure({
-                streaming: {
-                    bufferingGoal: 3, // M3U8 এর জন্য একটু বাফার ভালো
-                    rebufferingGoal: 1, 
-                    retryParameters: { maxAttempts: 5, baseDelay: 1000, backoffFactor: 2 }
+    if (videoUrl) {
+        if (Hls.isSupported()) {
+            const hls = new Hls();
+            hls.loadSource(videoUrl);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                video.play();
+            });
+            // এরর হ্যান্ডলিং
+            hls.on(Hls.Events.ERROR, function (event, data) {
+                if (data.fatal) {
+                    console.log("HLS Error:", data.type);
                 }
             });
-
-            // লিংক নেওয়া (?play=...)
-            const urlParams = new URLSearchParams(window.location.search);
-            const streamUrl = urlParams.get('play');
-
-            if (streamUrl) {
-                try {
-                    await player.load(streamUrl);
-                    console.log("Playing M3U8...");
-                } catch (e) {
-                    showError("Stream Offline / CORS Error");
-                }
-            } else {
-                showError("Error: Add ?play=LINK");
-            }
-
-            player.addEventListener('error', (e) => showError(`Error: ${e.detail.code}`));
-        } else {
-            console.error("Browser Not Supported");
         }
+        // আইফোন/সাফারির জন্য
+        else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = videoUrl;
+            video.addEventListener('loadedmetadata', function() {
+                video.play();
+            });
+        }
+    } else {
+        alert("Please add ?play=LINK");
     }
-
-    function showError(msg) {
-        const log = document.getElementById('error-log');
-        log.style.display = 'block';
-        log.innerText = msg;
-    }
-
-    document.addEventListener('shaka-ui-loaded', init);
 </script>
 
 </body>
