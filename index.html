@@ -1,194 +1,739 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Premium Player</title>
-
-  <!-- Plyr CSS -->
-  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
-
-  <!-- Hls.js -->
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-
-  <!-- Plyr JS -->
-  <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      width: 100%;
-      background: #000;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-
-    #playerWrapper {
-      height: 90vh;
-      width: 100%;
-      max-height: 90vh;
-      background: #000;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      overflow: hidden;
-      position: relative;
-    }
-
-    #playerContainer {
-      width: 100%;
-      height: 100%;
-      position: relative;
-    }
-
-    video {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      background: #000;
-    }
-
-    .plyr {
-      width: 100%;
-      height: 100%;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SonyLIV Master Pro + Admin</title>
     
-    /* Custom controls styling */
-    .plyr__controls {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      z-index: 3;
-      transition: opacity 0.3s ease;
-    }
+    <!-- ArtPlayer & Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dashjs/dist/dash.all.min.js"></script>
 
-    /* Text Below Player */
-    #infoText {
-      height: 10vh;
-      text-align: center;
-      color: #fff;
-      font-size: 20px;
-      font-weight: bold;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      animation: glowBlink 2s infinite;
-      z-index: 1;
-    }
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
+        body { background-color: #0f0f0f; color: #fff; padding: 10px; padding-bottom: 80px; }
 
-    /* Glow Blinking */
-    @keyframes glowBlink {
-      0%, 100% {
-        text-shadow: 0 0 5px #ff00ff, 0 0 10px #ff00ff, 0 0 20px #ff00ff;
-        opacity: 1;
-      }
-      50% {
-        text-shadow: none;
-        opacity: 0.6;
-      }
-    }
-  </style>
+        .container { max-width: 450px; margin: 0 auto; }
+        
+        /* PLAYER CONTAINER */
+        .player-wrapper {
+            display: none; width: 100%; height: 240px; background: #000;
+            margin-bottom: 20px; border-radius: 12px; overflow: hidden;
+            border: 1px solid #333; position: sticky; top: 0; z-index: 999;
+            box-shadow: 0 4px 15px rgba(255, 140, 0, 0.2);
+        }
+        #artplayer { width: 100%; height: 100%; }
+
+        /* CLOSE BUTTON FOR PLAYER */
+        .close-player {
+            position: absolute; top: 10px; right: 10px;
+            background: rgba(255, 0, 0, 0.8); color: white;
+            border: none; border-radius: 50%; width: 25px; height: 25px;
+            cursor: pointer; z-index: 1000; font-weight: bold;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* HEADER */
+        header { 
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px;
+            flex-wrap: wrap; gap: 10px;
+        }
+        h2 { font-size: 16px; font-weight: 700; color: #ff8c00; font-style: italic;}
+        
+        .header-btns { display: flex; gap: 8px; }
+
+        .refresh-btn {
+            background: #fff; color: #000; border: none; padding: 6px 12px;
+            border-radius: 15px; font-size: 11px; font-weight: 700; cursor: pointer;
+        }
+        
+        /* ADMIN BUTTON */
+        .admin-btn {
+            background: #ff8c00; color: #fff; border: none; padding: 6px 12px;
+            border-radius: 15px; font-size: 11px; font-weight: 700; cursor: pointer;
+        }
+        .refresh-btn:active, .admin-btn:active { transform: scale(0.95); }
+
+        /* SECTIONS */
+        .section-header { 
+            font-size: 13px; font-weight: 700; margin: 20px 0 10px; 
+            color: #ccc; text-transform: uppercase; border-left: 3px solid #ff8c00; padding-left: 8px;
+        }
+
+        /* CARD DESIGN */
+        .card {
+            background: #1c1c1e; border-radius: 12px; overflow: hidden;
+            margin-bottom: 12px; border: 1px solid #2c2c2e;
+            display: flex; flex-direction: column; position: relative;
+        }
+
+        /* CARD SELECTION CHECKBOX */
+        .card-select {
+            position: absolute; top: 10px; right: 10px; z-index: 10;
+            transform: scale(1.5); accent-color: #ff8c00; cursor: pointer;
+        }
+
+        /* SCAN BTN POSITIONED ON IMAGE */
+        .scan-btn {
+            position: absolute; top: 10px; left: 10px; z-index: 10;
+            font-size: 9px; padding: 3px 8px; border: 1px solid #fff; 
+            background: rgba(0,0,0,0.6); color: #fff; border-radius: 4px; cursor: pointer;
+        }
+        .scan-btn.matched { background: #00e676; color: #000; border-color: #00e676; font-weight: bold; }
+        .scan-btn.notfound { background: #ff4444; color: #fff; border-color: #ff4444; }
+
+        /* THUMBNAIL AREA */
+        .thumb-box { position: relative; width: 100%; height: 140px; }
+        .thumb { width: 100%; height: 100%; object-fit: cover; }
+        
+        .live-badge {
+            position: absolute; bottom: 8px; right: 8px;
+            background: #ff0000; color: white; padding: 2px 8px;
+            border-radius: 4px; font-size: 10px; font-weight: 700;
+        }
+
+        /* CONTENT AREA */
+        .content { padding: 10px; }
+        
+        .match-title {
+            font-size: 13px; font-weight: 600; line-height: 1.3; margin-bottom: 4px;
+            color: #eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 25px;
+        }
+        
+        .match-meta { 
+            font-size: 10px; color: #aaa; margin-bottom: 2px; 
+            display: flex; align-items: center; gap: 5px;
+        }
+        .channel-tag { background: #333; padding: 2px 6px; border-radius: 4px; color: #fff; font-weight: bold; }
+
+        .match-date {
+            font-size: 11px; color: #fff; margin-bottom: 4px; font-weight: 500;
+            display: block; 
+        }
+
+        .league-name {
+            font-size: 11px; color: #ff8c00; font-weight: 500; margin-bottom: 12px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        /* BUTTONS AREA */
+        .btn-group { display: flex; flex-direction: column; gap: 8px; }
+
+        /* BUTTON ROW */
+        .btn-row {
+            display: flex; gap: 6px; width: 100%; align-items: center;
+        }
+        
+        /* POSITION DROPDOWN */
+        .pos-select {
+            width: 45px; height: 32px; background: #333; border: 1px solid #555;
+            border-radius: 4px; color: #fff; font-size: 12px; font-weight: bold;
+            outline: none; cursor: pointer; text-align: center;
+        }
+        .pos-select:focus { border-color: #ff8c00; }
+
+        /* Play Button Style */
+        .btn-play {
+            width: 45px; background: #222; color: #ff8c00; border: 1px solid #444;
+            border-radius: 6px; font-size: 14px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: 0.2s; height: 32px;
+        }
+        .btn-play:active { transform: scale(0.9); background: #333; }
+        
+        /* Copy Button Style */
+        .action-btn {
+            flex: 1; padding: 8px 12px; border: none; border-radius: 6px;
+            font-size: 11px; font-weight: 600; cursor: pointer;
+            display: flex; align-items: center; justify-content: space-between;
+            transition: 0.2s; color: white; height: 32px;
+        }
+        .action-btn:active { transform: scale(0.98); opacity: 0.8; }
+
+        .mid-tag {
+            background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;
+            font-size: 9px; font-weight: 700; letter-spacing: 1px; color: #fff;
+            min-width: 45px; text-align: center;
+        }
+
+        /* BUTTON COLORS */
+        .btn-dai { background: linear-gradient(90deg, #ff512f 0%, #dd2476 100%); }
+        .btn-pub { background: linear-gradient(90deg, #1fa2ff 0%, #12d8fa 100%); color: #000; }
+        .btn-pub .mid-tag { color: #fff; background: rgba(0,0,0,0.5); } 
+        .btn-video { background: linear-gradient(90deg, #11998e 0%, #38ef7d 100%); color: #fff; }
+        
+        .btn-disabled { background: #333; color: #555; cursor: not-allowed; justify-content: center; width: 100%; padding: 8px;}
+
+        /* EMPTY MESSAGE */
+        .empty-msg {
+            text-align: center; color: #666; font-size: 12px; 
+            padding: 20px; border: 1px dashed #333; border-radius: 8px;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
+            background: #fff; color: #000; padding: 8px 15px; border-radius: 20px;
+            font-size: 11px; font-weight: 700; opacity: 0; pointer-events: none; transition: 0.3s;
+            z-index: 1000;
+        }
+
+        /* DEBUG CONSOLE & TOGGLE */
+        #debug-console {
+            position: fixed; bottom: 0; left: 0; width: 100%; height: 250px;
+            background: rgba(0,0,0,0.95); border-top: 2px solid #ff8c00;
+            color: #0f0; font-family: monospace; font-size: 10px;
+            padding: 10px; overflow-y: scroll; z-index: 1001; display: none;
+        }
+        .log-entry { margin-bottom: 4px; border-bottom: 1px solid #222; padding-bottom: 2px; }
+        .log-fail { color: #ff4444; }
+        .log-success { color: #00ff00; font-weight: bold; }
+        .log-info { color: #aaa; }
+
+        #debug-toggle {
+            position: fixed; bottom: 15px; left: 15px;
+            background: #111; color: #aaa; border: 1px solid #333;
+            padding: 4px 8px; font-size: 9px; border-radius: 4px; cursor: pointer; z-index: 1002;
+        }
+    </style>
 </head>
 <body>
-  <!-- Video Player -->
-  <div id="playerWrapper">
-    <div id="playerContainer">
-      <video id="player" playsinline controls autoplay></video>
+
+    <div class="container">
+        
+        <!-- PLAYER (Initially Hidden) -->
+        <div class="player-wrapper">
+            <button class="close-player" onclick="closePlayer()">×</button>
+            <div id="artplayer"></div>
+        </div>
+
+        <header>
+            <h2>SONYLIV MASTER</h2>
+            <div id="status" style="text-align:center; color:#888; font-size:10px;">Loading...</div>
+            <div class="header-btns">
+                <button class="refresh-btn" onclick="fetchData()">🔄 REFRESH</button>
+                <button id="adminBtn" class="admin-btn">⚡ ADD TO ADMIN</button>
+            </div>
+        </header>
+
+        <div id="live-section"></div>
+        <div id="upcoming-section"></div>
     </div>
-  </div>
 
-  <!-- Info Text -->
-  <div id="infoText">⚡ First 10 Second May be Buffer, Please Wait⚡</div>
+    <!-- DEBUG UI -->
+    <button id="debug-toggle" onclick="toggleDebug()">🐞 Debug</button>
+    <div id="debug-console"></div>
 
-  <script>
-    const urlParams = new URLSearchParams(window.location.search);
-    const videoUrl = urlParams.get("url");
-    const video = document.getElementById("player");
-    let controlsTimeout;
-    const controlsHideDelay = 3000; // 3 seconds
+    <div id="toast" class="toast">Action Complete</div>
 
-    if (Hls.isSupported()) {
-      const hls = new Hls();
-      hls.loadSource(videoUrl);
-      hls.attachMedia(video);
-      
-      hls.on(Hls.Events.MANIFEST_PARSED, function() {
-        const levels = hls.levels;
-        if (levels && levels.length > 0) {
-          hls.currentLevel = Math.floor(levels.length / 2);
+    <!-- FIREBASE & ADMIN LOGIC -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, get, update, push } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyChAHgjZGsE0YUFuStoiOBH-CI42fT_o-g",
+            authDomain: "field-fever-b9791.firebaseapp.com",
+            databaseURL: "https://field-fever-b9791-default-rtdb.firebaseio.com",
+            projectId: "field-fever-b9791",
+            storageBucket: "field-fever-b9791.firebasestorage.app",
+            messagingSenderId: "776434439897",
+            appId: "1:776434439897:web:ce93099eb6fb4bb9f310c8",
+            measurementId: "G-24NJCVZN0P"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // --- NEW: FIXED LOGO URL ---
+        const STREAM_LOGO = "https://i.ibb.co/Qv0csbR4/Sony-LIV-Logo-2020.png";
+
+        // DEBUG TOGGLE
+        window.toggleDebug = function() {
+            const el = document.getElementById('debug-console');
+            el.style.display = (el.style.display === 'block') ? 'none' : 'block';
         }
-      });
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = videoUrl;
-    }
 
-    const player = new Plyr(video, {
-      autoplay: true,
-      controls: [
-        'play-large', 
-        'play',
-        'progress',
-        'current-time',
-        'mute',
-        'volume',
-        'settings',
-        'pip',
-        'airplay',
-        'fullscreen'
-      ],
-      settings: ['quality', 'speed'],
-      hideControls: true // Let Plyr handle basic hide/show
-    });
+        function logToConsole(msg, type="") {
+            const consoleBox = document.getElementById('debug-console');
+            const div = document.createElement('div');
+            div.className = 'log-entry ' + type;
+            div.innerText = `> ${msg}`;
+            consoleBox.prepend(div); 
+        }
 
-    // Custom control visibility handler
-    function showControls() {
-      const controls = document.querySelector('.plyr__controls');
-      if (controls) {
-        controls.style.opacity = '1';
-        controls.style.pointerEvents = 'auto';
-      }
-      resetControlsTimer();
-    }
+        // --- SCAN FEATURE (NEW) ---
+        window.scanMatch = async function(btn, cardId) {
+            const card = document.getElementById(cardId);
+            btn.innerText = "Scanning...";
+            
+            const fcTitle = card.getAttribute('data-title').toLowerCase();
+            const fcCategory = card.getAttribute('data-category').toLowerCase();
 
-    function hideControls() {
-      const controls = document.querySelector('.plyr__controls');
-      if (controls && !player.paused) {
-        controls.style.opacity = '0';
-        controls.style.pointerEvents = 'none';
-      }
-    }
+            try {
+                const dbRef = ref(db, 'matches');
+                const snapshot = await get(dbRef);
+                const dbMatches = snapshot.exists() ? snapshot.val() : {};
+                
+                let found = false;
 
-    function resetControlsTimer() {
-      clearTimeout(controlsTimeout);
-      controlsTimeout = setTimeout(hideControls, controlsHideDelay);
-    }
+                for (const [key, val] of Object.entries(dbMatches)) {
+                    // Category Check
+                    const dbCategory = (val.sportType || "").toLowerCase();
+                    if(dbCategory !== fcCategory) continue;
 
-    // Event listeners for controls visibility
-    player.elements.container.addEventListener('mousemove', showControls);
-    player.elements.container.addEventListener('touchstart', showControls);
-    player.elements.container.addEventListener('mouseleave', hideControls);
+                    // Name Check
+                    const dbTeam1 = (val.team1Name || "").toLowerCase();
+                    const dbTeam2 = (val.team2Name || "").toLowerCase();
+                    
+                    if ((dbTeam1 && fcTitle.includes(dbTeam1)) || (dbTeam2 && fcTitle.includes(dbTeam2))) {
+                        found = true;
+                        break;
+                    }
+                }
 
-    // Initial setup
-    player.on('ready', () => {
-      // Start with controls visible, then hide after delay
-      showControls();
-      resetControlsTimer();
-    });
+                if(found) {
+                    btn.innerText = "✅ MATCHED";
+                    btn.classList.add('matched');
+                } else {
+                    btn.innerText = "⚠️ NEW";
+                    btn.classList.add('notfound');
+                }
 
-    // Show controls when playing/pausing
-    player.on('play', showControls);
-    player.on('pause', showControls);
+            } catch (e) {
+                console.log(e);
+                btn.innerText = "Err";
+            }
+        }
 
-    // Prevent container resize when quality changes
-    player.on('qualitychange', event => {
-      const wrapper = document.getElementById('playerWrapper');
-      wrapper.style.width = wrapper.offsetWidth + 'px';
-      wrapper.style.height = wrapper.offsetHeight + 'px';
-    });
-  </script>
+        // --- HELPER: GET SELECTED LINKS ---
+        window.getSelectedLinks = function(card) {
+            const selects = card.querySelectorAll('.pos-select');
+            const list = [];
+            const usedNumbers = new Set();
+            let duplicateFound = false;
+
+            selects.forEach(sel => {
+                const val = sel.value;
+                if(val && val !== "") {
+                    const orderNum = parseInt(val);
+                    const url = sel.getAttribute('data-url');
+                    const name = sel.getAttribute('data-name');
+
+                    if(usedNumbers.has(orderNum)) {
+                        duplicateFound = true;
+                    }
+                    usedNumbers.add(orderNum);
+
+                    list.push({ order: orderNum, url: url, name: name });
+                }
+            });
+
+            if(duplicateFound) return "DUPLICATE";
+            return list.sort((a, b) => a.order - b.order);
+        }
+
+        // --- MAIN ADMIN SYNC FUNCTION ---
+        window.handleAdminSync = async function() {
+            const btn = document.getElementById('adminBtn');
+            btn.innerText = "⏳ Syncing...";
+            btn.disabled = true;
+            document.getElementById('debug-console').innerHTML = '<div style="color:white; font-weight:bold;">--- STARTING SYNC ---</div>';
+
+            try {
+                const dbRef = ref(db, 'matches');
+                const snapshot = await get(dbRef);
+                const dbMatches = snapshot.exists() ? snapshot.val() : {};
+
+                let successCount = 0;
+                const cards = document.querySelectorAll('.card');
+                
+                // LOOP THROUGH SELECTED UI CARDS
+                for (const card of cards) {
+                    const matchCheckbox = card.querySelector('.match-select-cb');
+                    
+                    if (matchCheckbox && matchCheckbox.checked) {
+                        
+                        // NEW LOGIC: Use Position Map
+                        const selectionMap = window.getSelectedLinks(card);
+                        if (selectionMap === "DUPLICATE") {
+                            alert("Please check selection number (Duplicate Found)");
+                            btn.innerText = "⚡ ADD TO ADMIN"; btn.disabled = false;
+                            return; 
+                        }
+                        if (selectionMap.length === 0) continue;
+
+                        // DATA FROM SONYLIV (UI)
+                        const fcTitle = card.getAttribute('data-title').toLowerCase(); 
+                        const fcRawTitle = card.getAttribute('data-raw-title');
+                        const fcLeague = card.getAttribute('data-league');
+                        const fcCategory = card.getAttribute('data-category');
+                        const fcThumb = card.getAttribute('data-thumb');
+                        
+                        logToConsole(`🔍 Processing: ${fcTitle}`, "log-info");
+
+                        let matchFoundId = null;
+                        let matchCurrentLinks = [];
+
+                        // 1. SEARCH IN DATABASE (Priority: Category -> Team -> League)
+                        for (const [key, val] of Object.entries(dbMatches)) {
+                            
+                            // Check Category
+                            const dbCategory = (val.sportType || "").toLowerCase();
+                            if(dbCategory !== fcCategory.toLowerCase()) continue; 
+
+                            // Check Teams
+                            const dbTeam1 = (val.team1Name || "").toLowerCase();
+                            const dbTeam2 = (val.team2Name || "").toLowerCase();
+                            
+                            let isTeamMatch = false;
+                            if ((dbTeam1 && fcTitle.includes(dbTeam1)) || (dbTeam2 && fcTitle.includes(dbTeam2))) {
+                                isTeamMatch = true;
+                            }
+
+                            if (isTeamMatch) {
+                                matchFoundId = key;
+                                matchCurrentLinks = val.streamLinks || [];
+                                logToConsole(`✅ FOUND! ID: ...${key.substr(-5)}`, "log-success");
+                                break; 
+                            }
+                        }
+
+                        // 2. LOGIC: UPDATE OR CREATE
+                        if (matchFoundId) {
+                            // --- UPDATE EXISTING MATCH (INSERT & SHIFT DOWN) ---
+                            
+                            // Handle if links are object instead of array (Firebase quirk)
+                            let oldLinks = matchCurrentLinks;
+                            if (typeof oldLinks === 'object' && !Array.isArray(oldLinks)) {
+                                let tempArr = [];
+                                Object.keys(oldLinks).forEach(k => {
+                                    tempArr[parseInt(k)] = oldLinks[k];
+                                });
+                                oldLinks = tempArr;
+                            }
+                            // Fallback to empty array if null
+                            if (!Array.isArray(oldLinks)) oldLinks = [];
+
+                            // Clone existing links to preserve them
+                            let updatedLinks = [...oldLinks];
+
+                            // NEW LOGIC: INSERT & SHIFT
+                            // We splice at the target index. Old items shift down.
+                            selectionMap.forEach(sel => {
+                                const newLinkObj = {
+                                    name: sel.name,
+                                    link: sel.url,
+                                    type: "Direct",
+                                    logo: STREAM_LOGO // USING FIXED LOGO
+                                };
+                                const targetIndex = sel.order - 1;
+
+                                // Fill gaps with empty slots if target is beyond current length
+                                while (updatedLinks.length < targetIndex) {
+                                    updatedLinks.push({ name: "Empty Slot", link: "#", type: "Direct", logo: STREAM_LOGO });
+                                }
+
+                                // INSERT (Splice) - This shifts existing items down
+                                updatedLinks.splice(targetIndex, 0, newLinkObj);
+                                
+                                logToConsole(`Inserted at Position ${sel.order}: ${sel.name} (Shifted others down)`);
+                            });
+
+                            // Fill remaining undefined if any
+                            for(let i=0; i<updatedLinks.length; i++) {
+                                if(updatedLinks[i] === undefined || updatedLinks[i] === null) {
+                                    updatedLinks[i] = { name: "Empty Slot", link: "#", type: "Direct", logo: STREAM_LOGO };
+                                }
+                            }
+
+                            const updates = {};
+                            updates[`/matches/${matchFoundId}/streamLinks`] = updatedLinks;
+                            await update(ref(db), updates);
+                            successCount++;
+
+                        } else {
+                            // --- CREATE NEW MATCH (POPUP) ---
+                            const userConfirmed = confirm(`⚠️ No match found for:\n"${fcRawTitle}"\n\nDo you want to ADD this to the database?`);
+                            
+                            if (userConfirmed) {
+                                logToConsole("Creating New Match...", "log-info");
+                                
+                                // PARSE NAMES
+                                let t1Name = fcRawTitle; let t2Name = fcRawTitle;
+                                const vsSplit = fcRawTitle.split(/\s+vs\.?\s+|\s+v\.?\s+/i);
+                                if (vsSplit.length > 1) { t1Name = vsSplit[0].trim(); t2Name = vsSplit[1].trim(); }
+
+                                // CALCULATE TIME
+                                const startTimeMs = Date.now();
+                                const endTimeMs = startTimeMs + (4 * 60 * 60 * 1000); 
+
+                                // CONSTRUCT LINKS ARRAY
+                                let maxIndex = 0;
+                                selectionMap.forEach(s => { if((s.order-1) > maxIndex) maxIndex = s.order-1; });
+                                const finalLinks = new Array(maxIndex + 1).fill(null); 
+
+                                selectionMap.forEach(sel => {
+                                    finalLinks[sel.order - 1] = {
+                                        name: sel.name,
+                                        link: sel.url,
+                                        type: "Direct",
+                                        logo: STREAM_LOGO // USING FIXED LOGO
+                                    };
+                                });
+                                for(let i=0; i<finalLinks.length; i++) {
+                                    if(!finalLinks[i]) finalLinks[i] = { name: "Pending Link", link: "#", type: "Direct", logo: STREAM_LOGO };
+                                }
+
+                                const newMatchData = {
+                                    leagueTitle: fcLeague || "Unknown League",
+                                    leagueLogo: fcThumb, // This remains match image
+                                    team1Name: t1Name,
+                                    team1Logo: fcThumb,
+                                    team2Name: t2Name,
+                                    team2Logo: fcThumb,
+                                    matchTime: new Date(startTimeMs).toISOString(),
+                                    matchEndTime: new Date(endTimeMs).toISOString(),
+                                    sportType: fcCategory.toUpperCase(),
+                                    streamLinks: finalLinks
+                                };
+
+                                const newMatchRef = push(ref(db, 'matches'));
+                                await update(newMatchRef, newMatchData);
+                                
+                                successCount++;
+                                logToConsole("✅ New Match Created!", "log-success");
+                            } else {
+                                logToConsole("User Cancelled Addition.", "log-fail");
+                            }
+                        }
+                    }
+                }
+
+                if (successCount > 0) {
+                    showToast(`✅ Action Complete!`);
+                    window.resetSelections();
+                }
+                else {
+                    showToast("Done / Cancelled");
+                }
+
+            } catch (error) {
+                console.error(error);
+                logToConsole("Error: " + error.message, "log-fail");
+                showToast("Error Occurred");
+            }
+            btn.innerText = "⚡ ADD TO ADMIN";
+            btn.disabled = false;
+        }
+        document.getElementById('adminBtn').addEventListener('click', window.handleAdminSync);
+        
+        window.resetSelections = function() {
+            document.querySelectorAll('.pos-select').forEach(el => el.value = "");
+            document.querySelectorAll('.match-select-cb').forEach(cb => cb.checked = false);
+        }
+    </script>
+
+    <!-- PLAYER & FETCH LOGIC -->
+    <script>
+        // --- ARTPLAYER CONFIG ---
+        var player = new Artplayer({
+            container: '#artplayer',
+            url: '', isLive: true, autoplay: true, muted: false, autoSize: true, fullscreen: true, fullscreenWeb: true, theme: '#ff8c00',
+            customType: {
+                m3u8: function (video, url) {
+                    if (Hls.isSupported()) { const hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); }
+                    else if (video.canPlayType('application/vnd.apple.mpegurl')) { video.src = url; }
+                },
+                mpd: function (video, url) { const dash = dashjs.MediaPlayer().create(); dash.initialize(video, url, true); }
+            }
+        });
+
+        // PLAY STREAM FUNCTION
+        function playStream(url) {
+            if(!url) return;
+            const wrapper = document.querySelector('.player-wrapper');
+            wrapper.style.display = 'block';
+            player.switchUrl(url);
+            wrapper.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // CLOSE PLAYER FUNCTION
+        function closePlayer() {
+            const wrapper = document.querySelector('.player-wrapper');
+            wrapper.style.display = 'none';
+            player.pause();
+        }
+
+        // --- DATA FETCHING & LOGIC ---
+        const SOURCE_URL = "https://raw.githubusercontent.com/drmlive/sliv-live-events/main/sonyliv.json";
+        const PROXY_URL = "https://tight-river-c898.ranatoufik66.workers.dev/?url=";
+
+        async function fetchData() {
+            const liveBox = document.getElementById('live-section');
+            const upcomingBox = document.getElementById('upcoming-section');
+            const status = document.getElementById('status');
+            
+            status.innerText = "Scanning...";
+            liveBox.innerHTML = ''; 
+            upcomingBox.innerHTML = '';
+
+            try {
+                const url = PROXY_URL + encodeURIComponent(SOURCE_URL) + "&_t=" + Date.now();
+                const res = await fetch(url);
+                const data = await res.json();
+                const matches = data.matches || data; 
+
+                if(!matches || matches.length === 0) throw new Error("No data");
+
+                status.innerText = `Updated: ${new Date().toLocaleTimeString()}`;
+
+                // HEADERS
+                liveBox.innerHTML = `<div class="section-header">🔴 LIVE NOW</div>`;
+                upcomingBox.innerHTML = `<div class="section-header">📅 UPCOMING & SCHEDULE</div>`;
+
+                let liveCount = 0;
+                let upcomingCount = 0;
+
+                matches.forEach(match => {
+                    const isLive = (match.isLive === true || match.isLive === "true");
+                    if(isLive) {
+                        renderCard(match, liveBox, true);
+                        liveCount++;
+                    } else {
+                        renderCard(match, upcomingBox, false);
+                        upcomingCount++;
+                    }
+                });
+
+                if(liveCount === 0) liveBox.innerHTML += `<div class="empty-msg">No Live Matches Available</div>`;
+                if(upcomingCount === 0) upcomingBox.innerHTML += `<div class="empty-msg">No Upcoming Matches Found in Source</div>`;
+
+            } catch (e) {
+                status.innerText = "Error Loading Data";
+                console.error(e);
+            }
+        }
+
+        function renderCard(match, container, isLive) {
+            
+            let fullTitle = match.match_name || "Unknown Match";
+            let cleanTitle = fullTitle;
+            let dateText = "Date TBD";
+
+            if(fullTitle.includes('-')) {
+                const parts = fullTitle.split('-');
+                cleanTitle = parts[0].trim(); 
+                dateText = parts.slice(1).join('-').trim(); 
+            } else {
+                dateText = isLive ? "Live Now" : "Upcoming";
+            }
+
+            const daiLink = match.dai_url;   
+            const pubLink = match.pub_url;   
+            const vidLink = match.video_url; 
+            
+            const cardId = 'sony-card-' + Math.random().toString(36).substr(2, 9);
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.id = cardId;
+
+            // STORE DATA FOR ADMIN
+            card.setAttribute('data-title', cleanTitle + " " + (match.event_name || "")); 
+            card.setAttribute('data-raw-title', cleanTitle);
+            card.setAttribute('data-league', match.event_name);
+            card.setAttribute('data-category', match.event_category || "Sports");
+            card.setAttribute('data-thumb', match.src);
+
+            // GENERATE DROPDOWN OPTIONS (1-20)
+            let options = '<option value="">-</option>';
+            for(let i=1; i<=20; i++) { options += `<option value="${i}">${i}</option>`; }
+
+            let buttonsHtml = '';
+
+            // HELPER: CREATE ROW
+            function createRow(link, cls, label, tag, dbName) {
+                return `
+                <div class="btn-row">
+                    <select class="pos-select" data-url="${link}" data-name="${dbName}">
+                        ${options}
+                    </select>
+                    <button class="btn-play" onclick="playStream('${link}')">▶</button>
+                    <button class="action-btn ${cls}" onclick="copyLink('${link}', '${label} Copied!')">
+                        <span>${label}</span> <span class="mid-tag">${tag}</span> <span>📋</span>
+                    </button>
+                </div>`;
+            }
+
+            // 1. HD
+            if(daiLink && daiLink.length > 5) {
+                buttonsHtml += createRow(daiLink, 'btn-dai', '📺 SONYLIV (HD)', 'DAI', 'SONYLIV (HD)');
+            } else {
+                buttonsHtml += `<button class="btn-disabled">HD Waiting...</button>`;
+            }
+
+            // 2. FHD
+            if(pubLink && pubLink.length > 5) {
+                buttonsHtml += createRow(pubLink, 'btn-pub', '💎 SONYLIV (FHD)', 'PUB', 'SONYLIV (FHD)');
+            }
+
+            // 3. FAST
+            if(vidLink && vidLink.length > 5) {
+                buttonsHtml += createRow(vidLink, 'btn-video', '🚀 SONYLIV (FAST)', 'VIDEO', 'SONYLIV (FAST)');
+            }
+
+            card.innerHTML = `
+                <input type="checkbox" class="card-select match-select-cb">
+                <button class="scan-btn" onclick="scanMatch(this, '${cardId}')">SCAN</button>
+                <div class="thumb-box">
+                    <img src="${match.src}" class="thumb" onerror="this.src='https://via.placeholder.com/400x200/222/555?text=SonyLIV'">
+                    ${isLive ? '<span class="live-badge">LIVE</span>' : ''}
+                </div>
+                <div class="content">
+                    <div class="match-title">${cleanTitle}</div>
+                    <div class="match-meta">
+                        ${match.event_category || 'Sports'} • <span class="channel-tag">${match.broadcast_channel || 'Sony Network'}</span>
+                    </div>
+                    <div class="match-date">📅 ${dateText}</div>
+                    <div class="league-name">${match.event_name || 'League Info'}</div>
+                    <div class="btn-group">
+                        ${buttonsHtml}
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+        }
+
+        function copyLink(text, msg) {
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => showToast(msg)).catch(() => fallbackCopy(text, msg));
+            } else {
+                fallbackCopy(text, msg);
+            }
+        }
+
+        function fallbackCopy(text, msg) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed"; textArea.style.opacity = "0";
+            document.body.appendChild(textArea);
+            textArea.select();
+            try { document.execCommand('copy'); showToast(msg); } catch (e) {}
+            document.body.removeChild(textArea);
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.style.opacity = '1';
+            setTimeout(() => t.style.opacity = '0', 2000);
+        }
+
+        fetchData();
+    </script>
 </body>
 </html>
